@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Queue Visualizer — AlgoViz</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #0a0f1d; color: #f1f5f9; padding: 24px; }
+    .top-bar { max-width: 1000px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: center; }
+    a.back { color: #38bdf8; text-decoration: none; font-weight: 600; }
+    .tabs { max-width: 1000px; margin: 0 auto 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .tab-btn {
+      background: #111827; color: #cbd5e1; border: 1px solid #334155;
+      padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .tab-btn.active { background: #38bdf8; color: #0a0f1d; border-color: #38bdf8; }
+    .main { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
+    @media (max-width: 768px) { .main { grid-template-columns: 1fr; } }
+    .panel { background: #111827; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; }
+    .queue-box {
+      min-height: 110px; margin: 24px 0; padding: 14px;
+      border-top: 3px solid #38bdf8; border-bottom: 3px solid #38bdf8;
+      background: #090d16; border-radius: 8px;
+      display: flex; align-items: center; gap: 10px; overflow-x: auto;
+    }
+    .q-item {
+      min-width: 64px; height: 64px; background: #1e293b; border: 1px solid #38bdf8;
+      border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: bold; transition: 0.25s;
+    }
+    .q-item.highlight { background: #f59e0b; color: #000; border-color: #f59e0b; }
+    .q-tag { font-size: 10px; opacity: 0.85; margin-top: 2px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+    button.act, input.val {
+      padding: 8px 14px; border-radius: 8px; border: 1px solid #334155;
+      background: #1e293b; color: #fff; cursor: pointer;
+    }
+    input.val { width: 100px; cursor: text; }
+    .code-line { font-family: monospace; font-size: 13px; padding: 5px 10px; border-radius: 5px; white-space: pre; }
+    .code-line.active { background: rgba(56, 189, 248, 0.22); border-left: 3px solid #38bdf8; }
+    .status { margin-top: 14px; padding: 12px; background: #090d16; border-radius: 8px; font-size: 14px; color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <a href="index.html" class="back">← Back to Home</a>
+    <h2 style="margin:0;">Queue Visualizer (FIFO)</h2>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="setQMode('enqueue', this)">Enqueue</button>
+    <button class="tab-btn" onclick="setQMode('dequeue', this)">Dequeue</button>
+    <button class="tab-btn" onclick="setQMode('front', this)">Front</button>
+    <button class="tab-btn" onclick="setQMode('display', this)">Display</button>
+    <button class="tab-btn" onclick="setQMode('full', this)">Full in One</button>
+  </div>
+
+  <div class="main">
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; font-size:13px; color:#94a3b8;" id="qPointers">
+        <span>FRONT = 0</span>
+        <span>REAR = 2 (Max: 6)</span>
+      </div>
+      <div class="queue-box" id="queueBox"></div>
+      <div class="controls" id="qControls"></div>
+      <div class="status" id="qStatus">Select an operation to see FIFO in action.</div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">Algorithm & Code</h3>
+      <div id="qCode"></div>
+    </div>
+  </div>
+
+  <script>
+    const Q_CODES = {
+      enqueue: [
+        "function enqueue(val) {",
+        "  if (rear == MAX - 1) return 'Queue Full';",
+        "  if (front == -1) front = 0;",
+        "  rear = rear + 1;",
+        "  queue[rear] = val;",
+        "}"
+      ],
+      dequeue: [
+        "function dequeue() {",
+        "  if (front == -1 || front > rear) return 'Empty';",
+        "  let removed = queue[front];",
+        "  front = front + 1;",
+        "  return removed;",
+        "}"
+      ],
+      front: [
+        "function peekFront() {",
+        "  if (front == -1 || front > rear) return 'Empty';",
+        "  return queue[front];",
+        "}"
+      ],
+      display: [
+        "function display() {",
+        "  for (let i = front; i <= rear; i++) {",
+        "    print(queue[i]);",
+        "  }",
+        "}"
+      ],
+      full: [
+        "// Interactive Queue (FIFO, Max Size = 6)",
+        "enqueue(val) -> rear++; queue[rear] = val;",
+        "dequeue()    -> removed = queue[front]; front++;",
+        "front()      -> return queue[front];",
+        "display()    -> loop i from front to rear;"
+      ]
+    };
+
+    let queue = [15, 30, 45];
+    let qMode = "enqueue";
+    let qHi = -1;
+    let qLine = -1;
+    const Q_MAX = 6;
+
+    function renderQueue() {
+      const box = document.getElementById("queueBox");
+      if (queue.length === 0) {
+        box.innerHTML = `<span style="color:#64748b; margin:auto;">Queue is empty</span>`;
+      } else {
+        box.innerHTML = queue.map((val, i) => {
+          let label = "";
+          if (i === 0 && queue.length === 1) label = "F/R";
+          else if (i === 0) label = "FRONT";
+          else if (i === queue.length - 1) label = "REAR";
+          return `<div class="q-item ${i === qHi ? "highlight" : ""}"><span>${val}</span><span class="q-tag">${label}</span></div>`;
+        }).join("");
+      }
+
+      const fIdx = queue.length ? 0 : -1;
+      const rIdx = queue.length ? queue.length - 1 : -1;
+      document.getElementById("qPointers").innerHTML = `<span>FRONT = ${fIdx}</span><span>REAR = ${rIdx} (Max: ${Q_MAX})</span>`;
+      document.getElementById("qCode").innerHTML = Q_CODES[qMode].map((line, idx) =>
+        `<div class="code-line ${idx === qLine ? "active" : ""}">${idx + 1}  ${line}</div>`
+      ).join("");
+    }
+
+    function setQMode(mode, btn) {
+      qMode = mode;
+      qHi = -1;
+      qLine = -1;
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+
+      const ctrl = document.getElementById("qControls");
+      if (mode === "enqueue") {
+        ctrl.innerHTML = `<input class="val" id="qVal" type="number" value="60" /><button class="act" onclick="runEnqueue()">Run Enqueue</button>`;
+      } else if (mode === "dequeue") {
+        ctrl.innerHTML = `<button class="act" onclick="runDequeue()">Run Dequeue</button>`;
+      } else if (mode === "front") {
+        ctrl.innerHTML = `<button class="act" onclick="runQFront()">Run Front</button>`;
+      } else if (mode === "display") {
+        ctrl.innerHTML = `<button class="act" onclick="runQDisplay()">Run Display</button>`;
+      } else {
+        ctrl.innerHTML = `
+          <input class="val" id="qVal" type="number" value="75" />
+          <button class="act" onclick="runEnqueue(true)">Enqueue</button>
+          <button class="act" onclick="runDequeue(true)">Dequeue</button>
+          <button class="act" onclick="runQFront(true)">Front</button>
+          <button class="act" onclick="runQDisplay(true)">Display</button>
+        `;
+      }
+      renderQueue();
+    }
+
+    function setQStatus(msg) { document.getElementById("qStatus").textContent = msg; }
+
+    function runEnqueue(isFull = false) {
+      qLine = isFull ? 1 : 1; renderQueue();
+      if (queue.length >= Q_MAX) {
+        setQStatus("Queue is Full! Max capacity (6) reached.");
+        return;
+      }
+      const val = Number(document.getElementById("qVal")?.value || Math.floor(Math.random() * 90 + 10));
+      setTimeout(() => {
+        qLine = isFull ? 1 : 3;
+        setQStatus(`Moving REAR pointer forward to insert ${val}...`);
+        renderQueue();
+      }, 350);
+      setTimeout(() => {
+        queue.push(val);
+        qHi = queue.length - 1;
+        qLine = isFull ? 1 : 4;
+        setQStatus(`Enqueued ${val} at REAR (index ${qHi}).`);
+        renderQueue();
+      }, 750);
+    }
+
+    function runDequeue(isFull = false) {
+      qLine = isFull ? 2 : 1; renderQueue();
+      if (queue.length === 0) {
+        setQStatus("Queue Underflow! Nothing to dequeue.");
+        return;
+      }
+      qHi = 0;
+      qLine = isFull ? 2 : 2;
+      setQStatus(`Removing FRONT element ${queue[0]} (FIFO)...`);
+      renderQueue();
+      setTimeout(() => {
+        const removed = queue.shift();
+        qHi = -1;
+        qLine = isFull ? 2 : 3;
+        setQStatus(`Dequeued ${removed}. Next element becomes new FRONT.`);
+        renderQueue();
+      }, 650);
+    }
+
+    function runQFront(isFull = false) {
+      if (queue.length === 0) { setQStatus("Queue is empty!"); return; }
+      qHi = 0;
+      qLine = isFull ? 3 : 2;
+      setQStatus(`Front element is ${queue[0]}.`);
+      renderQueue();
+    }
+
+    function runQDisplay(isFull = false) {
+      if (queue.length === 0) { setQStatus("Queue is empty!"); return; }
+      let i = 0;
+      qLine = isFull ? 4 : 2;
+      const timer = setInterval(() => {
+        if (i >= queue.length) {
+          clearInterval(timer);
+          qHi = -1;
+          setQStatus("Display complete (Front to Rear).");
+          renderQueue();
+          return;
+        }
+        qHi = i;
+        setQStatus(`Visiting queue[${i}] = ${queue[i]}`);
+        renderQueue();
+        i++;
+      }, 500);
+    }
+
+    setQMode("enqueue", document.querySelector(".tab-btn"));
+  </script>
+</body>
+</html>
