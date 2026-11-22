@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stack Visualizer — AlgoViz</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #0a0f1d; color: #f1f5f9; padding: 24px; }
+    .top-bar { max-width: 1000px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: center; }
+    a.back { color: #38bdf8; text-decoration: none; font-weight: 600; }
+    .tabs { max-width: 1000px; margin: 0 auto 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .tab-btn {
+      background: #111827; color: #cbd5e1; border: 1px solid #334155;
+      padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    .tab-btn.active { background: #38bdf8; color: #0a0f1d; border-color: #38bdf8; }
+    .main { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
+    @media (max-width: 768px) { .main { grid-template-columns: 1fr; } }
+    .panel { background: #111827; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; }
+    .stack-box {
+      width: 180px; min-height: 260px; margin: 20px auto;
+      border: 3px solid #38bdf8; border-top: none; border-radius: 0 0 12px 12px;
+      display: flex; flex-direction: column-reverse; padding: 8px; gap: 8px; background: #090d16;
+    }
+    .stack-item {
+      background: #1e293b; border: 1px solid #38bdf8; padding: 12px;
+      text-align: center; border-radius: 6px; font-weight: bold; transition: 0.25s;
+    }
+    .stack-item.highlight { background: #f59e0b; color: #000; border-color: #f59e0b; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+    button.act, input.val {
+      padding: 8px 14px; border-radius: 8px; border: 1px solid #334155;
+      background: #1e293b; color: #fff; cursor: pointer;
+    }
+    input.val { width: 100px; cursor: text; }
+    .code-line { font-family: monospace; font-size: 13px; padding: 5px 10px; border-radius: 5px; white-space: pre; }
+    .code-line.active { background: rgba(56, 189, 248, 0.22); border-left: 3px solid #38bdf8; }
+    .status { margin-top: 14px; padding: 12px; background: #090d16; border-radius: 8px; font-size: 14px; color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <a href="index.html" class="back">← Back to Home</a>
+    <h2 style="margin:0;">Stack Visualizer</h2>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="setMode('push', this)">Push</button>
+    <button class="tab-btn" onclick="setMode('pop', this)">Pop</button>
+    <button class="tab-btn" onclick="setMode('peek', this)">Peek</button>
+    <button class="tab-btn" onclick="setMode('display', this)">Display</button>
+    <button class="tab-btn" onclick="setMode('full', this)">Full in One</button>
+  </div>
+
+  <div class="main">
+    <div class="panel">
+      <div style="text-align:center; font-size:13px; color:#94a3b8;" id="topIndicator">TOP = 2</div>
+      <div class="stack-box" id="stackBox"></div>
+      <div class="controls" id="controlArea"></div>
+      <div class="status" id="statusText">Select an operation or click Step to watch how Stack works.</div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">Algorithm & Code</h3>
+      <div id="codeBox"></div>
+    </div>
+  </div>
+
+  <script>
+    const CODES = {
+      push: [
+        "function push(val) {",
+        "  if (top == MAX - 1) return 'Overflow';",
+        "  top = top + 1;",
+        "  stack[top] = val;",
+        "}"
+      ],
+      pop: [
+        "function pop() {",
+        "  if (top == -1) return 'Underflow';",
+        "  let popped = stack[top];",
+        "  top = top - 1;",
+        "  return popped;",
+        "}"
+      ],
+      peek: [
+        "function peek() {",
+        "  if (top == -1) return 'Stack Empty';",
+        "  return stack[top];",
+        "}"
+      ],
+      display: [
+        "function display() {",
+        "  for (let i = top; i >= 0; i--) {",
+        "    print(stack[i]);",
+        "  }",
+        "}"
+      ],
+      full: [
+        "// Interactive Full Stack (Max Size = 5)",
+        "push(val) -> top++; stack[top] = val;",
+        "pop()     -> val = stack[top]; top--;",
+        "peek()    -> return stack[top];",
+        "display() -> loop i from top down to 0;"
+      ]
+    };
+
+    let stack = [10, 25, 40];
+    let currentMode = "push";
+    let highlightIdx = -1;
+    let activeLine = -1;
+    const MAX = 5;
+
+    function render() {
+      const box = document.getElementById("stackBox");
+      box.innerHTML = stack.map((v, i) =>
+        `<div class="stack-item ${i === highlightIdx ? "highlight" : ""}">${v} ${i === stack.length - 1 ? "(TOP)" : ""}</div>`
+      ).join("");
+
+      document.getElementById("topIndicator").textContent = `TOP = ${stack.length - 1} (Max: ${MAX})`;
+      document.getElementById("codeBox").innerHTML = CODES[currentMode].map((line, idx) =>
+        `<div class="code-line ${idx === activeLine ? "active" : ""}">${idx + 1}  ${line}</div>`
+      ).join("");
+    }
+
+    function setMode(mode, btn) {
+      currentMode = mode;
+      highlightIdx = -1;
+      activeLine = -1;
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+
+      const ctrl = document.getElementById("controlArea");
+      if (mode === "push") {
+        ctrl.innerHTML = `<input class="val" id="valIn" type="number" value="55" /><button class="act" onclick="runPush()">Run Push</button>`;
+      } else if (mode === "pop") {
+        ctrl.innerHTML = `<button class="act" onclick="runPop()">Run Pop</button>`;
+      } else if (mode === "peek") {
+        ctrl.innerHTML = `<button class="act" onclick="runPeek()">Run Peek</button>`;
+      } else if (mode === "display") {
+        ctrl.innerHTML = `<button class="act" onclick="runDisplay()">Run Display</button>`;
+      } else {
+        ctrl.innerHTML = `
+          <input class="val" id="valIn" type="number" placeholder="Value" value="70" />
+          <button class="act" onclick="runPush(true)">Push</button>
+          <button class="act" onclick="runPop(true)">Pop</button>
+          <button class="act" onclick="runPeek(true)">Peek</button>
+          <button class="act" onclick="runDisplay(true)">Display</button>
+        `;
+      }
+      render();
+    }
+
+    function setStatus(msg) { document.getElementById("statusText").textContent = msg; }
+
+    function runPush(isFull = false) {
+      const val = Number(document.getElementById("valIn")?.value || Math.floor(Math.random() * 90 + 10));
+      activeLine = isFull ? 1 : 1; render();
+      if (stack.length >= MAX) {
+        setStatus("Stack Overflow! Maximum size (5) reached.");
+        return;
+      }
+      setTimeout(() => {
+        activeLine = isFull ? 1 : 2;
+        setStatus(`Incrementing TOP to ${stack.length}...`);
+        render();
+      }, 350);
+      setTimeout(() => {
+        stack.push(val);
+        highlightIdx = stack.length - 1;
+        activeLine = isFull ? 1 : 3;
+        setStatus(`Pushed ${val} onto stack[TOP].`);
+        render();
+      }, 750);
+    }
+
+    function runPop(isFull = false) {
+      activeLine = isFull ? 2 : 1; render();
+      if (stack.length === 0) {
+        setStatus("Stack Underflow! Stack is empty.");
+        return;
+      }
+      highlightIdx = stack.length - 1;
+      activeLine = isFull ? 2 : 2;
+      setStatus(`Selecting top element ${stack[highlightIdx]}...`);
+      render();
+      setTimeout(() => {
+        const removed = stack.pop();
+        highlightIdx = -1;
+        activeLine = isFull ? 2 : 3;
+        setStatus(`Popped ${removed} and decremented TOP to ${stack.length - 1}.`);
+        render();
+      }, 650);
+    }
+
+    function runPeek(isFull = false) {
+      if (stack.length === 0) { setStatus("Stack is empty!"); return; }
+      highlightIdx = stack.length - 1;
+      activeLine = isFull ? 3 : 2;
+      setStatus(`Peek: Top element is ${stack[highlightIdx]} at index ${highlightIdx}.`);
+      render();
+    }
+
+    function runDisplay(isFull = false) {
+      if (stack.length === 0) { setStatus("Stack is empty!"); return; }
+      let i = stack.length - 1;
+      activeLine = isFull ? 4 : 2;
+      const timer = setInterval(() => {
+        if (i < 0) {
+          clearInterval(timer);
+          highlightIdx = -1;
+          setStatus("Display complete (Top to Bottom).");
+          render();
+          return;
+        }
+        highlightIdx = i;
+        setStatus(`Visiting stack[${i}] = ${stack[i]}`);
+        render();
+        i--;
+      }, 500);
+    }
+
+    setMode("push", document.querySelector(".tab-btn"));
+  </script>
+</body>
+</html>
